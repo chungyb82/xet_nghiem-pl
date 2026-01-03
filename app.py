@@ -225,11 +225,29 @@ def main():
     st.title("Tổng hợp dữ liệu nội trú")
     st.caption("Đọc file Excel và tổng hợp theo Tháng/năm - Nơi gửi.")
 
-    files = sorted(DATA_DIR.glob("*.xlsx"))
-    file_names = [f.name for f in files]
-
+    selected = []
+    run = False
     with st.sidebar:
         st.header("Cài đặt")
+        st.subheader("Tải file Excel")
+        uploads = st.file_uploader(
+            "Chọn file (.xlsx)", type=["xlsx"], accept_multiple_files=True
+        )
+        uploaded_names = []
+        if uploads:
+            for f in uploads:
+                dest = DATA_DIR / f.name
+                dest.write_bytes(f.read())
+                uploaded_names.append(f.name)
+            st.success(
+                f"Đã lưu {len(uploaded_names)} file vào {DATA_DIR}",
+                icon="✅",
+            )
+        st.divider()
+
+        files = sorted(DATA_DIR.glob("*.xlsx"))
+        file_names = [f.name for f in files]
+
         mode = st.radio(
             "Chế độ xử lý",
             ["Tất cả các file", "Chọn file cụ thể"],
