@@ -8,6 +8,12 @@ from io import BytesIO
 DATA_DIR = Path(__file__).parent
 
 
+def read_table(path: Path, header=None):
+    if path.suffix.lower() == ".csv":
+        return pd.read_csv(path, header=header)
+    return pd.read_excel(path, sheet_name=0, header=header)
+
+
 def detect_report_type(raw_df: pd.DataFrame) -> str:
     """Tìm loại sổ xét nghiệm từ vài dòng đầu."""
     texts = (
@@ -47,10 +53,10 @@ def pick_col(df: pd.DataFrame, level0: str, level1: str | None = None):
 
 def load_one_file(path: Path) -> pd.DataFrame:
     """Đọc 1 file và trả về bảng từng dòng đã chuẩn hóa."""
-    raw = pd.read_excel(path, sheet_name=0, header=None)
+    raw = read_table(path, header=None)
     report_type = detect_report_type(raw)
 
-    df = pd.read_excel(path, sheet_name=0, header=[4, 5])
+    df = read_table(path, header=[4, 5])
     df = normalize_columns(df)
 
     stt_col = pick_col(df, "STT")
@@ -222,16 +228,39 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 
 def main():
-    st.title("Tổng hợp dữ liệu nội trú")
-    st.caption("Đọc file Excel và tổng hợp theo Tháng/năm - Nơi gửi.")
+    st.title("Báo cáo tổng hợp kết quả xét nghiệm")
+    st.caption("Đọc file và tổng hợp theo Tháng/năm - Nơi gửi.")
 
     selected = []
     run = False
     with st.sidebar:
         st.header("Cài đặt")
-        st.subheader("Tải file Excel")
+        st.subheader("Tải tệp dữ liệu")
+        st.markdown(
+            """
+            <style>
+            /* Đổi nhãn kéo thả sang tiếng Việt */
+            [data-testid="stFileUploadDropzone"] div div:has(span[data-testid="stFileUploadDropzoneLabel"]) span[data-testid="stFileUploadDropzoneLabel"] {
+                visibility: hidden;
+                position: relative;
+            }
+            [data-testid="stFileUploadDropzone"] div div:has(span[data-testid="stFileUploadDropzoneLabel"]) span[data-testid="stFileUploadDropzoneLabel"]::after {
+                content: "Kéo và thả tệp tại đây";
+                visibility: visible;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         uploads = st.file_uploader(
-            "Chọn file (.xlsx)", type=["xlsx"], accept_multiple_files=True
+            "Chọn hoặc kéo thả (xls, xlsx, csv)",
+            type=["xlsx", "xls", "csv"],
+            accept_multiple_files=True,
         )
         uploaded_names = []
         if uploads:
@@ -245,8 +274,25 @@ def main():
             )
         st.divider()
 
-        files = sorted(DATA_DIR.glob("*.xlsx"))
+        files = sorted(
+            [p for p in DATA_DIR.iterdir() if p.suffix.lower() in {".xlsx", ".xls", ".csv"}]
+        )
         file_names = [f.name for f in files]
+
+        st.subheader("Xóa tệp")
+        to_delete = st.multiselect("Chọn tệp để xóa", file_names, key="delete_files")
+        if st.button("Xóa tệp đã chọn", use_container_width=True):
+            removed = []
+            for name in to_delete:
+                path = DATA_DIR / name
+                try:
+                    path.unlink(missing_ok=True)
+                    removed.append(name)
+                except Exception as e:
+                    st.error(f"Không xóa được {name}: {e}")
+            if removed:
+                st.success(f"Đã xóa: {', '.join(removed)}", icon="🗑️")
+            st.stop()
 
         mode = st.radio(
             "Chế độ xử lý",
